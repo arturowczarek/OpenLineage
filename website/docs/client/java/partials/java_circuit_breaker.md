@@ -40,12 +40,12 @@ circuitBreaker:
 </TabItem>
 <TabItem value="flink" label="Flink Config">
 
-| Parameter                            | Definition                                  | Example     |
---------------------------------------|---------------------------------------------|-------------
-| openlineage.circuitBreaker.type | Circuit breaker type selected               | simpleMemory |
-| openlineage.circuitBreaker.memoryThreshold | Memory threshold                            | 20 |
-| openlineage.circuitBreaker.circuitCheckIntervalInMillis | Frequency of checking circuit breaker       | 1000        |
-| spark.openlineage.circuitBreaker.timeoutInSeconds | Optional timeout for OpenLineage execution (Since version 1.13) | 90            |
+| Parameter                                               | Definition                                                      | Example      |
+|---------------------------------------------------------|-----------------------------------------------------------------|--------------|
+| openlineage.circuitBreaker.type                         | Circuit breaker type selected                                   | simpleMemory |
+| openlineage.circuitBreaker.memoryThreshold              | Memory threshold                                                | 20           |
+| openlineage.circuitBreaker.circuitCheckIntervalInMillis | Frequency of checking circuit breaker                           | 1000         |
+| openlineage.circuitBreaker.timeoutInSeconds             | Optional timeout for OpenLineage execution (Since version 1.13) | 90           |
 
 </TabItem>
 </Tabs>

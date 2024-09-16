@@ -52,13 +52,17 @@ public class ColumnLevelLineageUtils {
     OutputFieldsCollector.collect(context, plan);
     collectInputsAndExpressionDependencies(context, plan);
 
-    OpenLineage.ColumnLineageDatasetFacetBuilder facetBuilder =
-        olContext.getOpenLineage().newColumnLineageDatasetFacetBuilder();
+    ColumnLevelLineageBuilder clBuilder = context.getBuilder();
+    OpenLineage.ColumnLineageDatasetFacet facet =
+        olContext
+            .getOpenLineage()
+            .newColumnLineageDatasetFacetBuilder()
+            .fields(clBuilder.buildFields())
+            .status(clBuilder.buildStatus())
+            .build();
 
-    facetBuilder.fields(context.getBuilder().build());
-    OpenLineage.ColumnLineageDatasetFacet facet = facetBuilder.build();
-
-    if (facet.getFields().getAdditionalProperties().isEmpty()) {
+    if (facet.getFields().getAdditionalProperties().isEmpty()
+        && !context.getBuilder().applyFullIndirectLineagePruning()) {
       return Optional.empty();
     } else {
       return Optional.of(facet);

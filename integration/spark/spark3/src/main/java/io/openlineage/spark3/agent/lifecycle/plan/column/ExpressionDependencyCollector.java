@@ -129,12 +129,16 @@ public class ExpressionDependencyCollector {
 
       // don't add group by transformations if child is UNION and aggregate contains group by
       // expressions for all aggregate expressions
-      if (!(aggregate.child() instanceof Union && doesGroupByAllAggregateExpressions(aggregate))) {
+      boolean isAllToAll = doesGroupByAllAggregateExpressions(aggregate);
+      if (!(aggregate.child() instanceof Union && isAllToAll)) {
         datasetDependencies.addAll(
             ScalaConversionUtils.<Expression>fromSeq((aggregate).groupingExpressions()));
         datasetTransformation = Optional.of(TransformationInfo.indirect(GROUP_BY));
         expressions.addAll(
             ScalaConversionUtils.<NamedExpression>fromSeq((aggregate).aggregateExpressions()));
+      }
+      if (isAllToAll) {
+        context.getBuilder().setFullyConnectedIndirectOptimizationPossible(true);
       }
     } else if (node instanceof Join) {
       Option<Expression> condition = ((Join) node).condition();

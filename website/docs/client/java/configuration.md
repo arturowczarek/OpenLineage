@@ -93,6 +93,12 @@ OpenLineageClient client = OpenLineageClient.builder()
     }).build();
 ```
 
+## Column Lineage
+
+import ColumnLineage from './partials/java_column_lineage.md';
+
+<ColumnLineage/>
+
 ## Circuit Breakers
 
 import CircuitBreakers from './partials/java_circuit_breaker.md';

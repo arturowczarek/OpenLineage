@@ -36,7 +36,13 @@ Output Dataset example of adding a columnLineage facet:
 >           },
 >           "{second column of the output dataset}": ...,
 >           ...
->         }
+>         },
+>         status: {
+>           {status name in uppercase letters}: {
+>.            "reason": "{the reason for applying this status; meant to be parsed by the clients}",
+>             "description": "{description for humans}",
+>           }
+>         },
 >       }
       }
     }

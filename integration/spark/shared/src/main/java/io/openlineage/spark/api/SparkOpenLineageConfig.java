@@ -7,6 +7,7 @@ package io.openlineage.spark.api;
 
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.google.common.collect.ImmutableList;
+import io.openlineage.client.ColumnLineageConfig;
 import io.openlineage.client.OpenLineageConfig;
 import io.openlineage.client.circuitBreaker.CircuitBreakerConfig;
 import io.openlineage.client.dataset.DatasetConfig;
@@ -22,7 +23,10 @@ import lombok.NonNull;
 import lombok.Setter;
 import lombok.ToString;
 
+import javax.validation.constraints.NotNull;
+
 /** Config class to store entries which are specific only to Spark integration. */
+@Setter
 @Getter
 @NoArgsConstructor
 @ToString
@@ -32,15 +36,15 @@ public class SparkOpenLineageConfig extends OpenLineageConfig<SparkOpenLineageCo
 
   public static final String DEFAULT_NAMESPACE = "default";
 
-  @Setter @NonNull private String namespace;
-  @Setter @Getter private String parentJobName;
-  @Setter @Getter private String parentJobNamespace;
-  @Setter @Getter private String parentRunId;
-  @Setter @Getter private String overriddenAppName;
-  @Setter @NonNull private String debugFacet;
-  @Setter @Getter private String testExtensionProvider;
-  @Setter private JobNameConfig jobName;
-  @Setter private JobConfig job;
+  private String namespace;
+  private String parentJobName;
+  private String parentJobNamespace;
+  private String parentRunId;
+  private String overriddenAppName;
+  @NonNull private String debugFacet;
+  private String testExtensionProvider;
+  private JobNameConfig jobName;
+  private JobConfig job;
 
   public SparkOpenLineageConfig(
       String namespace,
@@ -55,8 +59,15 @@ public class SparkOpenLineageConfig extends OpenLineageConfig<SparkOpenLineageCo
       FacetsConfig facetsConfig,
       DatasetConfig datasetConfig,
       CircuitBreakerConfig circuitBreaker,
+      ColumnLineageConfig columnLineageConfig,
       Map<String, Object> metricsConfig) {
-    super(transportConfig, facetsConfig, datasetConfig, circuitBreaker, metricsConfig);
+    super(
+        transportConfig,
+        facetsConfig,
+        datasetConfig,
+        circuitBreaker,
+        columnLineageConfig,
+        metricsConfig);
     this.namespace = namespace;
     this.parentJobName = parentJobName;
     this.parentJobNamespace = parentJobNamespace;
@@ -94,6 +105,7 @@ public class SparkOpenLineageConfig extends OpenLineageConfig<SparkOpenLineageCo
     return jobName;
   }
 
+  @NotNull
   public String getNamespace() {
     if (namespace == null) {
       namespace = DEFAULT_NAMESPACE;
@@ -101,24 +113,32 @@ public class SparkOpenLineageConfig extends OpenLineageConfig<SparkOpenLineageCo
     return namespace;
   }
 
+  public ColumnLineageConfig getColumnLineageConfig() {
+    if (columnLineageConfig == null) {
+      columnLineageConfig = new ColumnLineageConfig();
+    }
+    return columnLineageConfig;
+  }
+
+  @Setter
   @Getter
   @ToString
   public static class JobNameConfig {
-    @Setter @Getter @NonNull private Boolean appendDatasetName = true;
-    @Setter @Getter @NonNull private Boolean replaceDotWithUnderscore = false;
+    @NonNull private Boolean appendDatasetName = true;
+    @NonNull private Boolean replaceDotWithUnderscore = false;
   }
 
+  @Setter
   @Getter
   @ToString
   public static class JobConfig {
-    @Setter @Getter private JobOwnersConfig owners;
+    private JobOwnersConfig owners;
   }
 
   @Getter
   @ToString
   public static class JobOwnersConfig {
-    @JsonAnySetter @Setter @Getter @NonNull
-    private Map<String, String> additionalProperties = new HashMap<>();
+    @JsonAnySetter @NonNull private Map<String, String> additionalProperties = new HashMap<>();
   }
 
   @Override
@@ -136,6 +156,7 @@ public class SparkOpenLineageConfig extends OpenLineageConfig<SparkOpenLineageCo
         mergePropertyWith(facetsConfig, other.facetsConfig),
         mergePropertyWith(datasetConfig, other.datasetConfig),
         mergePropertyWith(circuitBreaker, other.circuitBreaker),
+        mergePropertyWith(columnLineageConfig, other.columnLineageConfig),
         mergePropertyWith(metricsConfig, other.metricsConfig));
   }
 }

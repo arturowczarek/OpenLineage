@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://openlineage.io/spec/facets/1-1-0/ColumnLineageDatasetFacet.json",
+  "$id": "https://openlineage.io/spec/facets/1-1-1/ColumnLineageDatasetFacet.json",
   "$defs": {
     "ColumnLineageDatasetFacet": {
       "allOf": [
@@ -77,6 +77,27 @@
                 },
                 "additionalProperties": true,
                 "required": ["inputFields"]
+              }
+            },
+            "datasetDependencies": {
+              "type": "object",
+              // tu 92 pola
+            },
+            "status": {
+              "type": "object",
+              "description": "Additional information about the status of the transformation. Includes details like the applied facet optimizations. The only supported status at the moment is FULLY_CONNECTED.",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "description": "The reason for receiving this status. This value is not meant to be processed by the machines.."
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "A human readable description of the status."
+                  }
+                }
               }
             }
           },

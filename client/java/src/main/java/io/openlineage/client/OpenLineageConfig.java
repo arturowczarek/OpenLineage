@@ -40,6 +40,9 @@ public class OpenLineageConfig<T extends OpenLineageConfig> implements MergeConf
   @JsonProperty("circuitBreaker")
   protected CircuitBreakerConfig circuitBreaker;
 
+  @JsonProperty("columnLineage")
+  protected ColumnLineageConfig columnLineageConfig;
+
   @JsonProperty("metrics")
   protected Map<String, Object> metricsConfig;
 
@@ -56,6 +59,7 @@ public class OpenLineageConfig<T extends OpenLineageConfig> implements MergeConf
         mergePropertyWith(facetsConfig, other.facetsConfig),
         mergePropertyWith(datasetConfig, other.datasetConfig),
         mergePropertyWith(circuitBreaker, other.circuitBreaker),
+        mergePropertyWith(columnLineageConfig, other.columnLineageConfig),
         mergePropertyWith(metricsConfig, other.metricsConfig));
   }
 }

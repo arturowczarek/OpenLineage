@@ -9,6 +9,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.openlineage.client.OpenLineage;
 import io.openlineage.client.OpenLineage.ColumnLineageDatasetFacetFields;
+import io.openlineage.client.OpenLineage.ColumnLineageDatasetFacetFieldsAdditionalInputFields;
+import io.openlineage.client.OpenLineage.ColumnLineageDatasetFacetStatusBuilder;
+import io.openlineage.client.OpenLineage.SchemaDatasetFacetFields;
 import io.openlineage.client.OpenLineageClientUtils;
 import io.openlineage.client.utils.DatasetIdentifier;
 import io.openlineage.spark.api.OpenLineageContext;
@@ -22,8 +25,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.spark.sql.catalyst.expressions.ExprId;
@@ -42,10 +48,35 @@ public class ColumnLevelLineageBuilder {
   private Map<ExprId, Set<Dependency>> exprDependencies = new HashMap<>();
   private List<ExprId> datasetDependencies = new LinkedList<>();
   @Getter private Map<ExprId, Set<Input>> inputs = new HashMap<>();
-  private Map<OpenLineage.SchemaDatasetFacetFields, ExprId> outputs = new HashMap<>();
+  private Map<SchemaDatasetFacetFields, ExprId> outputs = new HashMap<>();
   private Map<ColumnMeta, ExprId> externalExpressionMappings = new HashMap<>();
   private final OpenLineage.SchemaDatasetFacet schema;
   private final OpenLineageContext context;
+
+  private enum Statuses {
+    FULLY_CONNECTED_INDIRECT_OPTIMIZATION_APPLIED(
+        "fully_connected_indirect_optimization_applied",
+        "The columns are fully connected with indirect type of dependency. All indirect dependencies were pruned.");
+
+    private final String reason;
+    private final String description;
+
+    Statuses(String reason, String description) {
+      this.reason = reason;
+      this.description = description;
+    }
+  }
+
+  /**
+   * Indicates that every column has indirect connection to every other column. This is a shortcut
+   * the clients can use if they want to detect this scenario. This field is extra information and
+   * may not always be accurate, but it doesn't give false positives (if it is set to true, then
+   * it's true; but when it is false you may not assume the fields are not fully connected). This
+   * field was created for scenarios where the column lineage is huge and produce a lot of output
+   * fields. It happens for example for wide tables where we have a DISTINCT clause. It is causing
+   * an all-to-all relationship.
+   */
+  @Getter @Setter private boolean fullyConnectedIndirectOptimizationPossible = false;
 
   public ColumnLevelLineageBuilder(
       @NonNull final OpenLineage.SchemaDatasetFacet schema,
@@ -155,7 +186,7 @@ public class ColumnLevelLineageBuilder {
    *
    * @return
    */
-  public ColumnLineageDatasetFacetFields build() {
+  public ColumnLineageDatasetFacetFields buildFields() {
     OpenLineage.ColumnLineageDatasetFacetFieldsBuilder fieldsBuilder =
         context.getOpenLineage().newColumnLineageDatasetFacetFieldsBuilder();
 
@@ -165,12 +196,15 @@ public class ColumnLevelLineageBuilder {
             .distinct()
             .collect(Collectors.toList());
 
-    schema.getFields().stream()
-        .map(field -> Pair.of(field, getInputsUsedFor(field.getName())))
-        .filter(pair -> !pair.getRight().isEmpty())
-        .map(
-            pair ->
-                Pair.of(pair.getLeft(), facetInputFields(pair.getRight(), datasetDependencyInputs)))
+    applyOptimizations(
+            schema.getFields().stream()
+                .map(field -> Pair.of(field, getInputsUsedFor(field.getName())))
+                .filter(pair -> !pair.getRight().isEmpty())
+                .map(
+                    pair ->
+                        Pair.of(
+                            pair.getLeft(),
+                            facetInputFields(pair.getRight(), datasetDependencyInputs))))
         .forEach(
             pair ->
                 fieldsBuilder.put(
@@ -184,7 +218,67 @@ public class ColumnLevelLineageBuilder {
     return fieldsBuilder.build();
   }
 
-  private List<OpenLineage.ColumnLineageDatasetFacetFieldsAdditionalInputFields> facetInputFields(
+  /**
+   * Applies extra optimizations on the column lineage fields. The optimizations may not always be
+   * applicable. The only possible optimization at the moment is full indirect column lineage
+   * pruning.
+   *
+   * @param fields fields to be optimized
+   * @return optimized fields
+   */
+  private Stream<
+          Pair<
+              SchemaDatasetFacetFields, List<ColumnLineageDatasetFacetFieldsAdditionalInputFields>>>
+      applyOptimizations(
+          Stream<
+                  Pair<
+                      SchemaDatasetFacetFields,
+                      List<ColumnLineageDatasetFacetFieldsAdditionalInputFields>>>
+              fields) {
+    /*
+    If we have fully connected columns (every column depends on every column), we may want to skip producing
+    the fields list, because the clients can recreate this information from the schema and the status field.
+    This behavior is controlled by the "spark.openlineage.columnLineage.skipFullyConnectedColumnsLineage.enabled" property.
+     */
+    return applyFullIndirectLineagePruning()
+        ? FullIndirectColumnPruning.apply(fields, context.getOpenLineage())
+        : fields;
+  }
+
+  public boolean applyFullIndirectLineagePruning() {
+    boolean fullIndirectColumnsLineage = isFullyConnectedIndirectOptimizationPossible();
+    boolean hideFullIndirectLineageFields =
+        context
+            .getOpenLineageConfig()
+            .getColumnLineageConfig()
+            .isPruneFullIndirectColumnLineageEnabled();
+    boolean applyFullIndirectLineagePruning =
+        fullIndirectColumnsLineage && hideFullIndirectLineageFields;
+    log.debug(
+        "fullIndirectColumnsLineage: [{}], hideFullIndirectLineageFields config: [{}]. Applying full indirect lineage pruning: [{}]",
+        fullIndirectColumnsLineage,
+        hideFullIndirectLineageFields,
+        applyFullIndirectLineagePruning);
+    return applyFullIndirectLineagePruning;
+  }
+
+  public OpenLineage.ColumnLineageDatasetFacetStatus buildStatus() {
+    ColumnLineageDatasetFacetStatusBuilder statusBuilder =
+        context.getOpenLineage().newColumnLineageDatasetFacetStatusBuilder();
+    if (applyFullIndirectLineagePruning()) {
+      statusBuilder.put(
+          Statuses.FULLY_CONNECTED_INDIRECT_OPTIMIZATION_APPLIED.name(),
+          context
+              .getOpenLineage()
+              .newColumnLineageDatasetFacetStatusAdditionalBuilder()
+              .reason(Statuses.FULLY_CONNECTED_INDIRECT_OPTIMIZATION_APPLIED.reason)
+              .description(Statuses.FULLY_CONNECTED_INDIRECT_OPTIMIZATION_APPLIED.description)
+              .build());
+    }
+    return statusBuilder.build();
+  }
+
+  private List<ColumnLineageDatasetFacetFieldsAdditionalInputFields> facetInputFields(
       List<TransformedInput> inputFields, List<TransformedInput> datasetDependencyInputs) {
     Map<Input, List<TransformedInput>> combinedInputs = new HashMap<>();
     inputFields.stream()
@@ -209,7 +303,7 @@ public class ColumnLevelLineageBuilder {
   }
 
   List<TransformedInput> getInputsUsedFor(String outputName) {
-    Optional<OpenLineage.SchemaDatasetFacetFields> outputField =
+    Optional<SchemaDatasetFacetFields> outputField =
         schema.getFields().stream()
             .filter(field -> field.getName().equalsIgnoreCase(outputName))
             .findAny();
