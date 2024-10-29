@@ -39,13 +39,6 @@ public class CustomCollectorsUtils {
    * visitors based on the Spark version and the libraries in use.
    */
   private static List<ColumnLevelLineageVisitor> getCollectors(ColumnLevelLineageContext context) {
-    return concatLists(
-        LegacyColumnLineageVisitorsLoader.getVisitors(),
-        context.getOlContext().getColumnLevelLineageVisitors());
-  }
-
-  private static List<ColumnLevelLineageVisitor> concatLists(
-      List<ColumnLevelLineageVisitor> list1, List<ColumnLevelLineageVisitor> list2) {
-    return Stream.concat(list1.stream(), list2.stream()).collect(Collectors.toList());
+    return context.getOlContext().getColumnLevelLineageVisitors();
   }
 }
